@@ -3,7 +3,7 @@ import Layout from "@/components/Layout";
 import { useProducts } from "@/context/ProductContext";
 import { useSales } from "@/context/SaleContext";
 import { toast } from "@/hooks/use-toast";
-
+ 
 // Import components
 import ScannerSection from "@/components/PDV/ScannerSection";
 import ProductItem from "@/components/PDV/ProductItem";
@@ -19,21 +19,38 @@ const PDV = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   useEffect(() => {
-    if (scannedBarcode) {
-      const product = getProductByBarcode(scannedBarcode);
-      if (product) {
-        setScannedProduct(product);
-        setQuantity(1);
-      } else {
-        toast({
-          title: "Produto não encontrado",
-          description: `Nenhum produto com código ${scannedBarcode} encontrado.`,
-          variant: "destructive",
-        });
-        setScannedProduct(null);
+    const fetchProduct = async () => {
+      if (scannedBarcode) {
+        try {
+          // Aguardar a resolução da Promise
+          const product = await getProductByBarcode(scannedBarcode);
+          
+          if (product) {
+            setScannedProduct(product);
+            setQuantity(1);
+          } else {
+            toast({
+              title: "Produto não encontrado",
+              description: `Nenhum produto com código ${scannedBarcode} encontrado.`,
+              variant: "destructive",
+            });
+            setScannedProduct(null);
+          }
+        } catch (error) {
+          console.error("Erro ao buscar produto:", error);
+          toast({
+            title: "Erro",
+            description: "Erro ao buscar produto",
+            variant: "destructive",
+          });
+          setScannedProduct(null);
+        } finally {
+          setScannedBarcode("");
+        }
       }
-      setScannedBarcode("");
-    }
+    };
+
+    fetchProduct();
   }, [scannedBarcode, getProductByBarcode]);
 
   const handleScan = (barcode: string) => {

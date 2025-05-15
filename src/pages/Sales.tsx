@@ -221,7 +221,7 @@ const Sales = () => {
                     </tbody>
                   </table>
                 </div>
-
+aaaaaaaaaa
                 <div className="mt-4 flex justify-end">
                   <div className="bg-gray-50 px-4 py-2 rounded-lg">
                     <span className="text-gray-700">Total:</span>

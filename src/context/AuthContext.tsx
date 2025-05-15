@@ -27,8 +27,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   // Admin credentials (in a real app, this would be in a database)
   const adminUser = {
-    username: "Rhuana",
-    password: "rhuana123",
+    username: "donadev",
+    password: "123",
   };
 
   const login = (username: string, password: string) => {

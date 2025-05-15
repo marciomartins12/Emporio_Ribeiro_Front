@@ -79,6 +79,7 @@ export const ProductProvider = ({ children }: ProductProviderProps) => {
         ...response.data,
         createdAt: new Date(response.data.createdAt || new Date())
       };
+
       setProducts([...products, newProduct]);
       return newProduct;
     } catch (error) {
@@ -123,12 +124,12 @@ export const ProductProvider = ({ children }: ProductProviderProps) => {
   const getProductByBarcode = async (barcode: string) => {
     try {
       const response = await api.get(`/products/${barcode}`);
+
       if (response.data) {
         // Garantir que o preço é um número válido
         const price = typeof response.data.price === 'number' ?
           response.data.price :
           parseFloat(response.data.price) || 0;
-
         return {
           ...response.data,
           price: price,  // Garantir que o preço é um número
