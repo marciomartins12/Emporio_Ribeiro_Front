@@ -20,6 +20,8 @@ export interface Sale {
 }
 
 interface SaleContextType {
+  paymentMethod: string | null;
+  setPaymentMethod: (method: string) => void;
   sales: Sale[];
   loading: boolean;
   currentSale: SaleItem[];
@@ -39,6 +41,7 @@ const SaleContext = createContext<SaleContextType | undefined>(undefined);
 
 export const useSales = () => {
   const context = useContext(SaleContext);
+
   if (!context) {
     throw new Error("useSales must be used within a SaleProvider");
   }
@@ -50,6 +53,7 @@ interface SaleProviderProps {
 }
 
 export const SaleProvider = ({ children }: SaleProviderProps) => {
+  const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentSale, setCurrentSale] = useState<SaleItem[]>([]);
@@ -70,7 +74,8 @@ export const SaleProvider = ({ children }: SaleProviderProps) => {
           barcode: item.barcode,
           price: item.price,
           quantity: item.quantity,
-          total: item.total
+          total: item.total,
+
         }))
       }));
 
@@ -150,17 +155,15 @@ export const SaleProvider = ({ children }: SaleProviderProps) => {
   const completeSale = async () => {
     if (currentSale.length === 0) return;
 
-    // Calculate sale total
     const total = currentSale.reduce((sum, item) => sum + item.total, 0);
 
     try {
-      // Enviar venda para o backend
       const response = await api.post('/sales', {
         items: currentSale,
-        total
+        total,
+        paymentMethod 
       });
 
-      // Formatar a resposta
       const newSale: Sale = {
         id: response.data.id,
         date: new Date(response.data.date),
@@ -168,11 +171,8 @@ export const SaleProvider = ({ children }: SaleProviderProps) => {
         total
       };
 
-      // Atualizar estado local
       setSales([newSale, ...sales]);
       clearCurrentSale();
-
-      // Atualizar a lista de vendas
       await refreshSales();
 
     } catch (error) {
@@ -180,6 +180,7 @@ export const SaleProvider = ({ children }: SaleProviderProps) => {
       throw error;
     }
   };
+
 
   const clearCurrentSale = () => {
     setCurrentSale([]);
@@ -255,7 +256,9 @@ export const SaleProvider = ({ children }: SaleProviderProps) => {
         getSalesByDate,
         getTotalSales,
         getItemCount,
-        refreshSales
+        refreshSales,
+        paymentMethod,
+        setPaymentMethod,
       }}
     >
       {children}
