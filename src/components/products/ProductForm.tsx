@@ -1,299 +1,291 @@
-
-import { useState } from "react";
-import { z } from "zod";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Barcode, Save } from "lucide-react";
-import { Product } from "@/types/product";
-import { Input } from "@/components/ui/input";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { productService } from "@/services/productService";
+import { categoryService } from "@/services/categoryService";
+import { toast } from "sonner";
 
-// Schema de validação do formulário
-const productSchema = z.object({
-  name: z.string().min(3, "O nome deve ter pelo menos 3 caracteres"),
-  barcode: z.string().min(8, "O código de barras deve ter pelo menos 8 caracteres"),
-  category: z.string().min(1, "Selecione uma categoria"),
-  costPrice: z.coerce.number().positive("Preço de custo deve ser maior que zero"),
-  sellingPrice: z.coerce.number().positive("Preço de venda deve ser maior que zero"),
-  stock: z.coerce.number().int().nonnegative("Estoque não pode ser negativo"),
-  minStock: z.coerce.number().int().nonnegative("Estoque mínimo não pode ser negativo").optional(),
-  description: z.string().optional(),
-});
-
-type ProductFormValues = z.infer<typeof productSchema>;
-
-// Categorias mock (seria vindo da API)
-const CATEGORIES = [
-  "Alimentos",
-  "Bebidas",
-  "Limpeza",
-  "Higiene Pessoal",
-  "Padaria",
-  "Açougue",
-  "Hortifruti",
-  "Outros"
-];
+interface Category {
+  id: number;
+  name: string;
+}
 
 interface ProductFormProps {
-  product?: Product;
-  onSubmit: (data: ProductFormValues) => void;
+  product?: any;
+  onSubmit: () => void;
 }
 
 const ProductForm = ({ product, onSubmit }: ProductFormProps) => {
-  const [isBarcodeDialogOpen, setIsBarcodeDialogOpen] = useState(false);
-  const [barcode, setBarcode] = useState("");
-
-  // Inicializar formulário com valores do produto se estiver editando
-  const form = useForm<ProductFormValues>({
-    resolver: zodResolver(productSchema),
-    defaultValues: product ? {
-      name: product.name,
-      barcode: product.barcode,
-      category: product.category,
-      costPrice: product.costPrice,
-      sellingPrice: product.sellingPrice,
-      stock: product.stock,
-      minStock: product.minStock,
-      description: product.description || '',
-    } : {
-      name: '',
-      barcode: '',
-      category: '',
-      costPrice: 0,
-      sellingPrice: 0,
-      stock: 0,
-      minStock: 0,
-      description: '',
-    }
+  const [formData, setFormData] = useState({
+    id: 0,
+    name: "",
+    barcode: "",
+    category_id: "",
+    price: "",
+    discount_price: "",
+    stock: "",
+    description: "",
+    image: "",
+    featured: false
   });
-
-  const handleFormSubmit = (data: ProductFormValues) => {
-    console.log("Dados do formulário:", data);
-    // Aqui chamaria a API para salvar ou atualizar o produto
-    onSubmit(data);
+  
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  
+  // Carregar categorias
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const categoriesData = await categoryService.getCategories();
+        setCategories(categoriesData);
+      } catch (error) {
+        console.error("Erro ao buscar categorias:", error);
+        setError("Não foi possível carregar as categorias. Por favor, tente novamente.");
+      }
+    };
+    
+    fetchCategories();
+  }, []);
+  
+  // Preencher formulário com dados do produto se estiver editando
+  useEffect(() => {
+    if (product) {
+      console.log("ProductForm - Inicializando com produto:", product);
+      console.log("ProductForm - Código de barras recebido:", product.barcode);
+      
+      setFormData({
+        id: product.id,
+        name: product.name || "",
+        barcode: product.barcode || "",
+        category_id: product.category_id?.toString() || "",
+        price: product.price?.toString() || "",
+        discount_price: product.discount_price?.toString() || "",
+        stock: product.stock?.toString() || "",
+        description: product.description || "",
+        image: product.image || "",
+        featured: product.featured || false
+      });
+    } else {
+      // Resetar formulário se for um novo produto
+      setFormData({
+        id: 0,
+        name: "",
+        barcode: "",
+        category_id: "",
+        price: "",
+        discount_price: "",
+        stock: "",
+        description: "",
+        image: "",
+        featured: false
+      });
+    }
+  }, [product]);
+  
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    console.log(`Campo ${name} alterado para: ${value}`);
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
-
-  const handleBarcodeSearch = () => {
-    if (barcode) {
-      form.setValue("barcode", barcode);
-      setIsBarcodeDialogOpen(false);
-      setBarcode("");
+  
+  const handleSelectChange = (name: string, value: string) => {
+    console.log(`Select ${name} alterado para: ${value}`);
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+  
+  const handleCheckboxChange = (name: string, checked: boolean) => {
+    console.log(`Checkbox ${name} alterado para: ${checked}`);
+    setFormData(prev => ({ ...prev, [name]: checked }));
+  };
+  
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setError("");
+    
+    try {
+      // Validar campos obrigatórios
+      if (!formData.name || !formData.category_id || !formData.price || !formData.stock) {
+        throw new Error("Por favor, preencha todos os campos obrigatórios.");
+      }
+      
+      // Preparar dados para envio
+      const productData = {
+        ...formData,
+        price: parseFloat(formData.price),
+        discount_price: formData.discount_price ? parseFloat(formData.discount_price) : null,
+        stock: parseInt(formData.stock),
+        category_id: parseInt(formData.category_id),
+        // Garantir que o código de barras seja enviado corretamente
+        barcode: formData.barcode || null
+      };
+      
+      console.log("Dados do produto a serem enviados:", productData);
+      
+      if (product) {
+        // Atualizar produto existente
+        await productService.updateProduct(product.id, productData);
+        toast.success("Produto atualizado com sucesso!");
+      } else {
+        // Criar novo produto
+        await productService.createProduct(productData);
+        toast.success("Produto criado com sucesso!");
+      }
+      
+      // Fechar formulário e atualizar lista
+      onSubmit();
+    } catch (error: any) {
+      console.error("Erro ao salvar produto:", error);
+      setError(error.message || "Ocorreu um erro ao salvar o produto. Por favor, tente novamente.");
+      toast.error("Erro ao salvar produto: " + error.message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
-
-  const handleBarcodeDialogClose = () => {
-    setIsBarcodeDialogOpen(false);
-    setBarcode("");
-  };
-
+  
   return (
-    <>
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nome do Produto</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Nome do produto" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="flex gap-2">
-              <FormField
-                control={form.control}
-                name="barcode"
-                render={({ field }) => (
-                  <FormItem className="flex-1">
-                    <FormLabel>Código de Barras</FormLabel>
-                    <div className="flex gap-2">
-                      <FormControl>
-                        <Input placeholder="Digite o código de barras" {...field} />
-                      </FormControl>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setIsBarcodeDialogOpen(true)}
-                      >
-                        <Barcode className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <FormField
-              control={form.control}
-              name="category"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Categoria</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                    value={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione uma categoria" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {CATEGORIES.map((category) => (
-                        <SelectItem key={category} value={category}>
-                          {category}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="costPrice"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Preço de Custo</FormLabel>
-                    <FormControl>
-                      <Input type="number" step="0.01" placeholder="0,00" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="sellingPrice"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Preço de Venda</FormLabel>
-                    <FormControl>
-                      <Input type="number" step="0.01" placeholder="0,00" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="stock"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Estoque Atual</FormLabel>
-                    <FormControl>
-                      <Input type="number" placeholder="0" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="minStock"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Estoque Mínimo</FormLabel>
-                    <FormControl>
-                      <Input type="number" placeholder="0" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem className="md:col-span-2">
-                  <FormLabel>Descrição</FormLabel>
-                  <FormControl>
-                    <Textarea placeholder="Descrição do produto" rows={3} {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <Button type="submit">
-              <Save className="h-4 w-4 mr-2" />
-              Salvar Produto
-            </Button>
-          </div>
-        </form>
-      </Form>
-
-      <Dialog open={isBarcodeDialogOpen} onOpenChange={setIsBarcodeDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Leitura de Código de Barras</DialogTitle>
-            <DialogDescription>
-              Use o leitor para escanear o código de barras ou digite manualmente.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <Input
-              type="text"
-              placeholder="Digite ou escaneie o código de barras"
-              className="barcode-input text-center font-mono"
-              value={barcode}
-              onChange={(e) => setBarcode(e.target.value)}
-              autoFocus
-            />
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={handleBarcodeDialogClose}>
-                Cancelar
-              </Button>
-              <Button onClick={handleBarcodeSearch}>Confirmar</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {error && (
+        <div className="bg-red-50 p-4 rounded-md text-red-600 text-sm">
+          {error}
+        </div>
+      )}
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="name">Nome do Produto *</Label>
+          <Input
+            id="name"
+            name="name"
+            value={formData.name}
+            onChange={handleChange}
+            required
+          />
+        </div>
+        
+        <div className="space-y-2">
+          <Label htmlFor="barcode">Código de Barras</Label>
+          <Input
+            id="barcode"
+            name="barcode"
+            value={formData.barcode}
+            onChange={handleChange}
+            placeholder="Digite o código de barras"
+          />
+        </div>
+        
+        <div className="space-y-2">
+          <Label htmlFor="category">Categoria *</Label>
+          <Select
+            value={formData.category_id}
+            onValueChange={(value) => handleSelectChange("category_id", value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione uma categoria" />
+            </SelectTrigger>
+            <SelectContent>
+              {categories.map((category) => (
+                <SelectItem key={category.id} value={category.id.toString()}>
+                  {category.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        
+        <div className="space-y-2">
+          <Label htmlFor="price">Preço de Venda *</Label>
+          <Input
+            id="price"
+            name="price"
+            type="number"
+            step="0.01"
+            min="0"
+            value={formData.price}
+            onChange={handleChange}
+            required
+          />
+        </div>
+        
+        <div className="space-y-2">
+          <Label htmlFor="discount_price">Preço Promocional</Label>
+          <Input
+            id="discount_price"
+            name="discount_price"
+            type="number"
+            step="0.01"
+            min="0"
+            value={formData.discount_price}
+            onChange={handleChange}
+          />
+        </div>
+        
+        <div className="space-y-2">
+          <Label htmlFor="stock">Estoque *</Label>
+          <Input
+            id="stock"
+            name="stock"
+            type="number"
+            min="0"
+            value={formData.stock}
+            onChange={handleChange}
+            required
+          />
+        </div>
+        
+        <div className="space-y-2 md:col-span-2">
+          <Label htmlFor="description">Descrição</Label>
+          <Textarea
+            id="description"
+            name="description"
+            value={formData.description}
+            onChange={handleChange}
+            rows={3}
+          />
+        </div>
+        
+        <div className="space-y-2">
+          <Label htmlFor="image">URL da Imagem</Label>
+          <Input
+            id="image"
+            name="image"
+            value={formData.image}
+            onChange={handleChange}
+          />
+        </div>
+        
+        <div className="flex items-center space-x-2 h-full pt-6">
+          <Checkbox
+            id="featured"
+            checked={formData.featured}
+            onCheckedChange={(checked) => 
+              handleCheckboxChange("featured", checked as boolean)
+            }
+          />
+          <Label htmlFor="featured">Produto em destaque</Label>
+        </div>
+      </div>
+      
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="outline" onClick={onSubmit}>
+          Cancelar
+        </Button>
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? "Salvando..." : product ? "Atualizar" : "Cadastrar"}
+        </Button>
+      </div>
+    </form>
   );
 };
 

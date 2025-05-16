@@ -1,16 +1,13 @@
 
 import axios from 'axios';
 
-// Defina a URL base da sua API aqui
-const API_BASE_URL = '/api'; // Substituir pela URL real da sua API
 
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: 'http://localhost:5000/api',
   headers: {
     'Content-Type': 'application/json',
-  },
+  }
 });
-
 // Interceptor para tratamento global de erros
 api.interceptors.response.use(
   (response) => response,
