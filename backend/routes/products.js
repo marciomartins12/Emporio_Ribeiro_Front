@@ -83,12 +83,12 @@ router.get('/category/:slug', async (req, res) => {
 // Adicionar um novo produto (requer autenticação de admin)
 router.post('/', async (req, res) => {
   try {
-    const { name, description, price, discount_price, image, category_id, stock, featured } = req.body;
+    const { name, description, price, discount_price, image, category_id, stock, featured, barcode } = req.body;
     
     const [result] = await db.query(`
-      INSERT INTO products (name, description, price, discount_price, image, category_id, stock, featured)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `, [name, description, price, discount_price, image, category_id, stock, featured]);
+      INSERT INTO products (name, description, price, discount_price, image, category_id, stock, featured, barcode)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [name, description, price, discount_price, image, category_id, stock, featured, barcode]);
     
     res.status(201).json({ 
       id: result.insertId,
@@ -103,14 +103,14 @@ router.post('/', async (req, res) => {
 // Atualizar um produto
 router.put('/:id', async (req, res) => {
   try {
-    const { name, description, price, discount_price, image, category_id, stock, featured } = req.body;
+    const { name, description, price, discount_price, image, category_id, stock, featured, barcode } = req.body;
     
     await db.query(`
       UPDATE products
-      SET name = ?, description = ?, price = ?, discount_price = ?, 
-          image = ?, category_id = ?, stock = ?, featured = ?
+      SET name = ?, description = ?, price = ?, discount_price = ?,
+          image = ?, category_id = ?, stock = ?, featured = ?, barcode = ?
       WHERE id = ?
-    `, [name, description, price, discount_price, image, category_id, stock, featured, req.params.id]);
+    `, [name, description, price, discount_price, image, category_id, stock, featured, barcode, req.params.id]);
     
     res.json({ message: 'Produto atualizado com sucesso' });
   } catch (error) {

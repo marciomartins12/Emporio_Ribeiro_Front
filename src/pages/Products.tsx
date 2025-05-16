@@ -146,14 +146,14 @@ const Products = () => {
         
         if (searchQuery) {
           products = await productService.getProducts();
-          console.log('Produtos brutos da API:', products); // Log para depuração
+          
           return products.filter(p => 
             p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             (p.barcode && p.barcode.includes(searchQuery))
           );
         } else {
           products = await productService.getProducts();
-          console.log('Produtos brutos da API:', products); // Log para depuração
+          
         }
         
         return products;

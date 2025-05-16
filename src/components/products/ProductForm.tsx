@@ -95,17 +95,17 @@ const ProductForm = ({ product, onSubmit }: ProductFormProps) => {
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    console.log(`Campo ${name} alterado para: ${value}`);
+    
     setFormData(prev => ({ ...prev, [name]: value }));
   };
   
   const handleSelectChange = (name: string, value: string) => {
-    console.log(`Select ${name} alterado para: ${value}`);
+    
     setFormData(prev => ({ ...prev, [name]: value }));
   };
   
   const handleCheckboxChange = (name: string, checked: boolean) => {
-    console.log(`Checkbox ${name} alterado para: ${checked}`);
+    
     setFormData(prev => ({ ...prev, [name]: checked }));
   };
   
