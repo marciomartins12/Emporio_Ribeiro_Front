@@ -1,541 +1,354 @@
-import React, { useState } from "react";
-import Layout from "@/components/Layout";
-import { useProducts, Product } from "@/context/ProductContext";
+
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { productsService } from "@/services/api/productsService";
+import { Product } from "@/types/product";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Package, Edit, Trash, Plus, Search } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
-
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { 
+  Plus, 
+  Search, 
+  Edit, 
+  Trash, 
+  MoreVertical, 
+  Barcode 
+} from "lucide-react";
+import ProductForm from "@/components/products/ProductForm";
 
+// Componente de formulário de produto
+const ProductFormDialog = ({ 
+  product, 
+  isOpen, 
+  onClose 
+}: { 
+  product?: Product; 
+  isOpen: boolean; 
+  onClose: () => void;
+}) => {
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{product ? 'Editar Produto' : 'Novo Produto'}</DialogTitle>
+          <DialogDescription>
+            {product 
+              ? 'Atualize as informações do produto' 
+              : 'Preencha as informações para cadastrar um novo produto'}
+          </DialogDescription>
+        </DialogHeader>
+        <ProductForm product={product} onSubmit={onClose} />
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// Componente de confirmação de exclusão
+const DeleteConfirmation = ({ 
+  isOpen, 
+  onClose, 
+  onConfirm, 
+  productName 
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  onConfirm: () => void; 
+  productName: string;
+}) => {
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Confirmar exclusão</DialogTitle>
+          <DialogDescription>
+            Tem certeza que deseja excluir o produto "{productName}"? Esta ação não pode ser desfeita.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button variant="destructive" onClick={onConfirm}>
+            Excluir
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// Componente da página de Produtos
 const Products = () => {
-  const { products, addProduct, updateProduct, deleteProduct } = useProducts();
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedProduct, setSelectedProduct] = useState<Product | undefined>(undefined);
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [currentProduct, setCurrentProduct] = useState<Product | null>(null);
-  const [formData, setFormData] = useState({
-    barcode: "",
-    name: "",
-    price: "",
-    stock: "",
-    minStock: "",
-    category: "",
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [isBarcodeDialogOpen, setIsBarcodeDialogOpen] = useState(false);
+  const [barcode, setBarcode] = useState("");
+
+  // Mock data - seria substituído por dados reais da API
+  const mockProducts: Product[] = [
+    {
+      id: "1",
+      name: "Arroz Integral",
+      barcode: "7891234567890",
+      category: "Alimentos",
+      costPrice: 12.50,
+      sellingPrice: 18.90,
+      stock: 25,
+      minStock: 10,
+      createdAt: "2023-06-10T14:30:00Z",
+      updatedAt: "2023-06-10T14:30:00Z"
+    },
+    {
+      id: "2",
+      name: "Feijão Carioca",
+      barcode: "7892345678901",
+      category: "Alimentos",
+      costPrice: 8.75,
+      sellingPrice: 12.90,
+      stock: 30,
+      minStock: 15,
+      createdAt: "2023-06-11T10:15:00Z",
+      updatedAt: "2023-06-11T10:15:00Z"
+    },
+    {
+      id: "3",
+      name: "Óleo de Soja",
+      barcode: "7893456789012",
+      category: "Alimentos",
+      costPrice: 6.50,
+      sellingPrice: 9.75,
+      stock: 40,
+      minStock: 20,
+      createdAt: "2023-06-12T09:45:00Z",
+      updatedAt: "2023-06-12T09:45:00Z"
+    },
+  ];
+
+  // Simular chamada de API com react-query
+  const productsQuery = useQuery({
+    queryKey: ['products', searchQuery],
+    queryFn: () => {
+      return new Promise<Product[]>(resolve => {
+        setTimeout(() => {
+          const filtered = searchQuery
+            ? mockProducts.filter(p => 
+                p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                p.barcode.includes(searchQuery)
+              )
+            : mockProducts;
+          resolve(filtered);
+        }, 500);
+      });
+    }
   });
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value,
-    });
+  const handleEditProduct = (product: Product) => {
+    setSelectedProduct(product);
+    setIsFormOpen(true);
   };
 
-  const resetFormData = () => {
-    setFormData({
-      barcode: "",
-      name: "",
-      price: "",
-      stock: "",
-      minStock: "",
-      category: "",
-    });
-  };
-
-  const handleAddProduct = () => {
-    // Validate form
-    if (
-      !formData.barcode ||
-      !formData.name ||
-      !formData.price ||
-      !formData.stock ||
-      !formData.minStock ||
-      !formData.category
-    ) {
-      toast({
-        title: "Campos obrigatórios",
-        description: "Preencha todos os campos obrigatórios.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Check if barcode already exists
-    if (products.some(p => p.barcode === formData.barcode)) {
-      toast({
-        title: "Código de barras já existe",
-        description: "Este código de barras já está em uso.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Add product
-    addProduct({
-      barcode: formData.barcode,
-      name: formData.name,
-      price: parseFloat(formData.price),
-      stock: parseInt(formData.stock),
-      minStock: parseInt(formData.minStock),
-      category: formData.category,
-    });
-
-    toast({
-      title: "Produto adicionado",
-      description: `${formData.name} adicionado com sucesso.`,
-    });
-
-    resetFormData();
-    setIsAddDialogOpen(false);
-  };
-
-  const handleEditClick = (product: Product) => {
-    setCurrentProduct(product);
-    setFormData({
-      barcode: product.barcode,
-      name: product.name,
-      price: product.price.toString(),
-      stock: product.stock.toString(),
-      minStock: product.minStock.toString(),
-      category: product.category,
-    });
-    setIsEditDialogOpen(true);
-  };
-
-  const handleUpdateProduct = () => {
-    if (!currentProduct) return;
-
-    // Validate form
-    if (
-      !formData.barcode ||
-      !formData.name ||
-      !formData.price ||
-      !formData.stock ||
-      !formData.minStock ||
-      !formData.category
-    ) {
-      toast({
-        title: "Campos obrigatórios",
-        description: "Preencha todos os campos obrigatórios.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Check if barcode already exists (excluding current product)
-    if (
-      products.some(p => p.barcode === formData.barcode && p.id !== currentProduct.id)
-    ) {
-      toast({
-        title: "Código de barras já existe",
-        description: "Este código de barras já está em uso.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Update product
-    updateProduct({
-      ...currentProduct,
-      barcode: formData.barcode,
-      name: formData.name,
-      price: parseFloat(formData.price),
-      stock: parseInt(formData.stock),
-      minStock: parseInt(formData.minStock),
-      category: formData.category,
-    });
-
-    toast({
-      title: "Produto atualizado",
-      description: `${formData.name} atualizado com sucesso.`,
-    });
-
-    setIsEditDialogOpen(false);
-  };
-
-  const handleDeleteClick = (product: Product) => {
-    setCurrentProduct(product);
+  const handleDeleteProduct = (product: Product) => {
+    setProductToDelete(product);
     setIsDeleteDialogOpen(true);
   };
 
-  const handleDeleteProduct = () => {
-    if (!currentProduct) return;
-
-    deleteProduct(currentProduct.id);
-
-    toast({
-      title: "Produto removido",
-      description: `${currentProduct.name} removido com sucesso.`,
-    });
-
+  const confirmDelete = () => {
+    // Aqui chamaria a API para excluir o produto
+    console.log(`Excluindo produto: ${productToDelete?.id}`);
     setIsDeleteDialogOpen(false);
+    setProductToDelete(null);
   };
 
-  // Filter products based on search term
-  const filteredProducts = products.filter(
-    (product) =>
-      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.barcode.includes(searchTerm) ||
-      product.category.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleBarcodeSearch = () => {
+    if (barcode) {
+      setSearchQuery(barcode);
+      setIsBarcodeDialogOpen(false);
+      setBarcode("");
+    }
+  };
+
+  const handleBarcodeDialogClose = () => {
+    setIsBarcodeDialogOpen(false);
+    setBarcode("");
+  };
+
+  const handleFormClose = () => {
+    setIsFormOpen(false);
+    setSelectedProduct(undefined);
+  };
 
   return (
-    <Layout>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Gestão de Produtos</h1>
-        <Button onClick={() => {
-          resetFormData();
-          setIsAddDialogOpen(true);
-        }} className="emporio-btn-primary">
-          <Plus className="mr-2 h-5 w-5" />
-          Novo Produto
-        </Button>
-      </div>
-
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-4 border-b">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <Input
-              placeholder="Buscar produtos..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="emporio-table">
-            <thead>
-              <tr>
-                <th>Código</th>
-                <th>Nome</th>
-                <th>Preço (R$)</th>
-                <th>Estoque</th>
-                <th>Categoria</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredProducts.length > 0 ? (
-                filteredProducts.map((product) => (
-                  <tr key={product.id}>
-                    <td>{product.barcode}</td>
-                    <td>{product.name}</td>
-                    <td>R$ {typeof product.price === 'number' ? product.price.toFixed(2) : parseFloat(String(product.price)).toFixed(2)}</td>
-                    <td className="flex items-center">
-                      <span className="mr-2">{product.stock}</span>
-                      {product.stock <= product.minStock && (
-                        <span className="emporio-badge emporio-badge-warning">
-                          Baixo
-                        </span>
-                      )}
-                    </td>
-                    <td>{product.category}</td>
-                    <td>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEditClick(product)}
-                          className="text-blue-600 hover:text-blue-800 hover:bg-blue-50"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteClick(product)}
-                          className="text-red-600 hover:text-red-800 hover:bg-red-50"
-                        >
-                          <Trash className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={6} className="text-center py-8 text-gray-500">
-                    {searchTerm
-                      ? "Nenhum produto encontrado com os termos da busca."
-                      : "Nenhum produto cadastrado."}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="heading-xl text-emporio-text">Produtos</h1>
+        <div className="flex gap-2">
+          <Dialog open={isBarcodeDialogOpen} onOpenChange={setIsBarcodeDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Barcode className="h-4 w-4 mr-2" />
+                Ler Código
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Leitura de Código de Barras</DialogTitle>
+                <DialogDescription>
+                  Use o leitor para escanear o código de barras ou digite manualmente.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <Input
+                  type="text"
+                  placeholder="Digite ou escaneie o código de barras"
+                  className="barcode-input text-center font-mono"
+                  value={barcode}
+                  onChange={(e) => setBarcode(e.target.value)}
+                  autoFocus
+                />
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={handleBarcodeDialogClose}>
+                    Cancelar
+                  </Button>
+                  <Button onClick={handleBarcodeSearch}>Buscar</Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+          
+          <Dialog open={isFormOpen} onOpenChange={handleFormClose}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Novo Produto
+              </Button>
+            </DialogTrigger>
+          </Dialog>
         </div>
       </div>
 
-      {/* Add Product Dialog */}
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Adicionar Produto</DialogTitle>
-            <DialogDescription>
-              Preencha as informações do novo produto.
-            </DialogDescription>
-          </DialogHeader>
+      <div className="flex items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar produtos..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-8"
+          />
+        </div>
+      </div>
 
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <label htmlFor="barcode" className="text-sm font-medium">
-                Código de Barras*
-              </label>
-              <Input
-                id="barcode"
-                name="barcode"
-                placeholder="Digite o código de barras"
-                value={formData.barcode}
-                onChange={handleInputChange}
-              />
-            </div>
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Nome</TableHead>
+              <TableHead>Código de Barras</TableHead>
+              <TableHead>Categoria</TableHead>
+              <TableHead className="text-right">Preço Venda</TableHead>
+              <TableHead className="text-right">Estoque</TableHead>
+              <TableHead className="w-[80px]">Ações</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {productsQuery.isLoading ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-10">
+                  Carregando...
+                </TableCell>
+              </TableRow>
+            ) : productsQuery.data && productsQuery.data.length > 0 ? (
+              productsQuery.data.map((product) => (
+                <TableRow key={product.id}>
+                  <TableCell className="font-medium">{product.name}</TableCell>
+                  <TableCell className="font-mono">{product.barcode}</TableCell>
+                  <TableCell>{product.category}</TableCell>
+                  <TableCell className="text-right">
+                    {product.sellingPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <span className={
+                      product.stock <= (product.minStock || 0) 
+                        ? "text-red-600 font-medium" 
+                        : ""
+                    }>
+                      {product.stock}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleEditProduct(product)}>
+                          <Edit className="h-4 w-4 mr-2" />
+                          Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => handleDeleteProduct(product)}
+                          className="text-red-600 focus:text-red-600"
+                        >
+                          <Trash className="h-4 w-4 mr-2" />
+                          Excluir
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-10">
+                  Nenhum produto encontrado.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
-            <div className="grid gap-2">
-              <label htmlFor="name" className="text-sm font-medium">
-                Nome do Produto*
-              </label>
-              <Input
-                id="name"
-                name="name"
-                placeholder="Digite o nome do produto"
-                value={formData.name}
-                onChange={handleInputChange}
-              />
-            </div>
+      {/* Formulário de produto (modal) */}
+      <ProductFormDialog 
+        product={selectedProduct} 
+        isOpen={isFormOpen} 
+        onClose={handleFormClose} 
+      />
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <label htmlFor="price" className="text-sm font-medium">
-                  Preço (R$)*
-                </label>
-                <Input
-                  id="price"
-                  name="price"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  value={formData.price}
-                  onChange={handleInputChange}
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <label htmlFor="category" className="text-sm font-medium">
-                  Categoria*
-                </label>
-                <Input
-                  id="category"
-                  name="category"
-                  placeholder="Digite a categoria"
-                  value={formData.category}
-                  onChange={handleInputChange}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <label htmlFor="stock" className="text-sm font-medium">
-                  Estoque*
-                </label>
-                <Input
-                  id="stock"
-                  name="stock"
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  value={formData.stock}
-                  onChange={handleInputChange}
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <label htmlFor="minStock" className="text-sm font-medium">
-                  Estoque Mínimo*
-                </label>
-                <Input
-                  id="minStock"
-                  name="minStock"
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  value={formData.minStock}
-                  onChange={handleInputChange}
-                />
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleAddProduct}>
-              <Package className="mr-2 h-4 w-4" />
-              Adicionar Produto
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Product Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Editar Produto</DialogTitle>
-            <DialogDescription>
-              Atualize as informações do produto.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <label htmlFor="barcode" className="text-sm font-medium">
-                Código de Barras*
-              </label>
-              <Input
-                id="barcode"
-                name="barcode"
-                placeholder="Digite o código de barras"
-                value={formData.barcode}
-                onChange={handleInputChange}
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <label htmlFor="name" className="text-sm font-medium">
-                Nome do Produto*
-              </label>
-              <Input
-                id="name"
-                name="name"
-                placeholder="Digite o nome do produto"
-                value={formData.name}
-                onChange={handleInputChange}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <label htmlFor="price" className="text-sm font-medium">
-                  Preço (R$)*
-                </label>
-                <Input
-                  id="price"
-                  name="price"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  value={formData.price}
-                  onChange={handleInputChange}
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <label htmlFor="category" className="text-sm font-medium">
-                  Categoria*
-                </label>
-                <Input
-                  id="category"
-                  name="category"
-                  placeholder="Digite a categoria"
-                  value={formData.category}
-                  onChange={handleInputChange}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <label htmlFor="stock" className="text-sm font-medium">
-                  Estoque*
-                </label>
-                <Input
-                  id="stock"
-                  name="stock"
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  value={formData.stock}
-                  onChange={handleInputChange}
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <label htmlFor="minStock" className="text-sm font-medium">
-                  Estoque Mínimo*
-                </label>
-                <Input
-                  id="minStock"
-                  name="minStock"
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  value={formData.minStock}
-                  onChange={handleInputChange}
-                />
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleUpdateProduct}>
-              <Edit className="mr-2 h-4 w-4" />
-              Atualizar Produto
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja excluir o produto{" "}
-              <span className="font-semibold">{currentProduct?.name}</span>?
-              Esta ação não pode ser desfeita.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-red-500 hover:bg-red-600"
-              onClick={handleDeleteProduct}
-            >
-              Excluir
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </Layout>
+      {/* Confirmação de exclusão */}
+      {productToDelete && (
+        <DeleteConfirmation 
+          isOpen={isDeleteDialogOpen}
+          onClose={() => setIsDeleteDialogOpen(false)}
+          onConfirm={confirmDelete}
+          productName={productToDelete.name}
+        />
+      )}
+    </div>
   );
 };
 

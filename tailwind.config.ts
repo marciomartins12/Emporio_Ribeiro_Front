@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -52,19 +53,6 @@ export default {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
 				},
-                emporio: {
-                    50: '#f0f9f0',
-                    100: '#dcf0dc',
-                    200: '#bae2bb',
-                    300: '#8fcb91',
-                    400: '#5fae62',
-                    500: '#3d913f', // Base green
-                    600: '#2e742f',
-                    700: '#275c28',
-                    800: '#224824',
-                    900: '#1e3c20',
-                    950: '#0b210c',
-                },
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',
 					foreground: 'hsl(var(--sidebar-foreground))',
@@ -74,6 +62,15 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				emporio: {
+					primary: '#3B82F6', // Blue
+					secondary: '#10B981', // Green
+					accent: '#F97316', // Orange
+					background: '#F9FAFB',
+					card: '#FFFFFF',
+					text: '#1F2937',
+					muted: '#6B7280'
 				}
 			},
 			borderRadius: {
@@ -97,16 +94,14 @@ export default {
 					to: {
 						height: '0'
 					}
-				},
-                'fadeIn': {
-                    '0%': { opacity: '0' },
-                    '100%': { opacity: '1' },
-                }
+				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out',
-                'fadeIn': 'fadeIn 0.5s ease-in-out'
+				'accordion-up': 'accordion-up 0.2s ease-out'
+			},
+			fontFamily: {
+				sans: ['Inter', 'sans-serif']
 			}
 		}
 	},

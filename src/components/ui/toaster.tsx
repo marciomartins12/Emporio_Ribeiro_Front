@@ -1,17 +1,33 @@
-import { toast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/use-toast"
+import {
+  Toast,
+  ToastClose,
+  ToastDescription,
+  ToastProvider,
+  ToastTitle,
+  ToastViewport,
+} from "@/components/ui/toast"
 
-export const Toaster = () => {
-  const toasts = []; // ou use algum contexto real se estiver pronto
+export function Toaster() {
+  const { toasts } = useToast()
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 space-y-2">
-      {toasts && toasts.length > 0 ? (
-        toasts.map((t, i) => (
-          <div key={i} className="bg-gray-800 text-white p-3 rounded-lg shadow-md">
-            {t.message}
-          </div>
-        ))
-      ) : null}
-    </div>
-  );
-};
+    <ToastProvider>
+      {toasts.map(function ({ id, title, description, action, ...props }) {
+        return (
+          <Toast key={id} {...props}>
+            <div className="grid gap-1">
+              {title && <ToastTitle>{title}</ToastTitle>}
+              {description && (
+                <ToastDescription>{description}</ToastDescription>
+              )}
+            </div>
+            {action}
+            <ToastClose />
+          </Toast>
+        )
+      })}
+      <ToastViewport />
+    </ToastProvider>
+  )
+}
