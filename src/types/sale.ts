@@ -1,4 +1,3 @@
-
 export interface SaleItem {
   productId: string;
   productName: string;
@@ -7,7 +6,7 @@ export interface SaleItem {
   totalPrice: number;
 }
 
-export type PaymentMethod = 'cash' | 'credit_card' | 'debit_card' | 'pix';
+export type PaymentMethod = 'cash' | 'credit_card' | 'pix';
 
 export interface Sale {
   id: string;
@@ -17,7 +16,7 @@ export interface Sale {
   cashReceived?: number;
   change?: number;
   createdAt: string;
-  updatedAt: string;
+  status: 'completed' | 'cancelled' | 'pending';
 }
 
 export interface SaleFilter {

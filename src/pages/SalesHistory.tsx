@@ -1,10 +1,16 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { salesService } from "@/services/api/salesService";
-import { Sale, PaymentMethod, SaleFilter } from "@/types/sale";
+import { Sale } from "@/types/sale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -14,437 +20,469 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
-import { Card, CardContent } from "@/components/ui/card";
-import { 
-  Calendar as CalendarIcon, 
-  Search, 
-  FileText, 
-  CreditCard,
-  DollarSign,
-  QrCode
+import {
+  Calendar,
+  Search,
+  FileText,
+  Printer,
+  ArrowUpDown,
+  Eye,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-
-const SaleDetails = ({ 
-  sale 
-}: { 
-  sale: Sale | null 
-}) => {
-  if (!sale) return null;
-
-  const formatPaymentMethod = (method: PaymentMethod) => {
-    switch (method) {
-      case 'cash': return 'Dinheiro';
-      case 'credit_card': return 'Cartão de Crédito';
-      case 'debit_card': return 'Cartão de Débito';
-      case 'pix': return 'PIX';
-      default: return method;
-    }
-  };
-
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <h3 className="text-sm font-medium text-muted-foreground">Data da Venda</h3>
-          <p>{format(new Date(sale.createdAt), "dd/MM/yyyy HH:mm")}</p>
-        </div>
-        <div>
-          <h3 className="text-sm font-medium text-muted-foreground">Forma de Pagamento</h3>
-          <p>{formatPaymentMethod(sale.paymentMethod)}</p>
-        </div>
-        <div>
-          <h3 className="text-sm font-medium text-muted-foreground">Total</h3>
-          <p className="font-semibold">
-            {sale.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-          </p>
-        </div>
-        {sale.paymentMethod === 'cash' && (
-          <div>
-            <h3 className="text-sm font-medium text-muted-foreground">Troco</h3>
-            <p>
-              {(sale.change || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-            </p>
-          </div>
-        )}
-      </div>
-
-      <div>
-        <h3 className="text-sm font-medium mb-2">Itens</h3>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Produto</TableHead>
-              <TableHead className="text-center">Qtd</TableHead>
-              <TableHead className="text-right">Preço Un.</TableHead>
-              <TableHead className="text-right">Total</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {sale.items.map((item, index) => (
-              <TableRow key={index}>
-                <TableCell>{item.productName}</TableCell>
-                <TableCell className="text-center">{item.quantity}</TableCell>
-                <TableCell className="text-right">
-                  {item.unitPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                </TableCell>
-                <TableCell className="text-right">
-                  {item.totalPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
-  );
-};
-
-const PaymentMethodIcon = ({ method }: { method: PaymentMethod }) => {
-  switch (method) {
-    case 'cash':
-      return <DollarSign className="h-4 w-4" />;
-    case 'credit_card':
-    case 'debit_card':
-      return <CreditCard className="h-4 w-4" />;
-    case 'pix':
-      return <QrCode className="h-4 w-4" />;
-    default:
-      return null;
-  }
-};
-
-const PaymentMethodBadge = ({ method }: { method: PaymentMethod }) => {
-  let color = '';
-  let label = '';
-
-  switch (method) {
-    case 'cash':
-      color = 'bg-green-100 text-green-800 border-green-200';
-      label = 'Dinheiro';
-      break;
-    case 'credit_card':
-      color = 'bg-blue-100 text-blue-800 border-blue-200';
-      label = 'Crédito';
-      break;
-    case 'debit_card':
-      color = 'bg-purple-100 text-purple-800 border-purple-200';
-      label = 'Débito';
-      break;
-    case 'pix':
-      color = 'bg-amber-100 text-amber-800 border-amber-200';
-      label = 'PIX';
-      break;
-    default:
-      color = 'bg-gray-100 text-gray-800 border-gray-200';
-      label = method;
-  }
-
-  return (
-    <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${color}`}>
-      <PaymentMethodIcon method={method} />
-      <span className="ml-1">{label}</span>
-    </div>
-  );
-};
+import Receipt from "@/components/pos/Receipt";
 
 const SalesHistory = () => {
-  const [filters, setFilters] = useState<SaleFilter>({});
-  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
-  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
-  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [isReceiptOpen, setIsReceiptOpen] = useState(false);
 
-  // Mock de vendas (seria substituído pelos dados da API)
-  const mockSales: Sale[] = [
-    {
-      id: "1",
-      items: [
-        { productId: "1", productName: "Arroz Integral", quantity: 2, unitPrice: 18.90, totalPrice: 37.80 },
-        { productId: "2", productName: "Feijão Carioca", quantity: 3, unitPrice: 12.90, totalPrice: 38.70 }
-      ],
-      total: 76.50,
-      paymentMethod: 'cash',
-      cashReceived: 100,
-      change: 23.50,
-      createdAt: "2024-05-14T10:30:00Z",
-      updatedAt: "2024-05-14T10:30:00Z"
-    },
-    {
-      id: "2",
-      items: [
-        { productId: "3", productName: "Óleo de Soja", quantity: 1, unitPrice: 9.75, totalPrice: 9.75 },
-        { productId: "4", productName: "Café Tradicional", quantity: 2, unitPrice: 22.50, totalPrice: 45.00 }
-      ],
-      total: 54.75,
-      paymentMethod: 'credit_card',
-      createdAt: "2024-05-13T15:45:00Z",
-      updatedAt: "2024-05-13T15:45:00Z"
-    },
-    {
-      id: "3",
-      items: [
-        { productId: "5", productName: "Açúcar Refinado", quantity: 3, unitPrice: 6.90, totalPrice: 20.70 },
-        { productId: "1", productName: "Arroz Integral", quantity: 1, unitPrice: 18.90, totalPrice: 18.90 }
-      ],
-      total: 39.60,
-      paymentMethod: 'pix',
-      createdAt: "2024-05-12T09:15:00Z",
-      updatedAt: "2024-05-12T09:15:00Z"
-    }
-  ];
-
-  // Simular chamada de API com react-query
+  // Buscar histórico de vendas
   const salesQuery = useQuery({
-    queryKey: ['sales', filters],
-    queryFn: () => {
-      return new Promise<Sale[]>(resolve => {
-        setTimeout(() => {
-          let filtered = [...mockSales];
-          
-          // Filtrar por data
-          if (filters.startDate) {
-            filtered = filtered.filter(sale => 
-              new Date(sale.createdAt) >= new Date(filters.startDate!)
-            );
-          }
-          
-          if (filters.endDate) {
-            filtered = filtered.filter(sale => 
-              new Date(sale.createdAt) <= new Date(filters.endDate!)
-            );
-          }
-          
-          // Filtrar por método de pagamento
-          if (filters.paymentMethod) {
-            filtered = filtered.filter(sale => 
-              sale.paymentMethod === filters.paymentMethod
-            );
-          }
-          
-          // Filtrar por valor
-          if (filters.minValue !== undefined) {
-            filtered = filtered.filter(sale => sale.total >= filters.minValue!);
-          }
-          
-          if (filters.maxValue !== undefined) {
-            filtered = filtered.filter(sale => sale.total <= filters.maxValue!);
-          }
-          
-          resolve(filtered);
-        }, 500);
-      });
-    }
+    queryKey: ["sales", startDate, endDate],
+    queryFn: () => salesService.getSales(startDate, endDate),
   });
 
-  // Aplicar filtros
-  const applyFilters = () => {
-    const newFilters: SaleFilter = {};
-    
-    if (startDate) {
-      newFilters.startDate = startDate.toISOString();
+  // Filtrar vendas por pesquisa
+  const filteredSales = salesQuery.data
+    ? salesQuery.data.filter((sale) => {
+        if (!searchQuery) return true;
+        
+        const query = searchQuery.toLowerCase();
+        
+        // Pesquisar por ID da venda
+        if (sale.id.toString().includes(query)) return true;
+        
+        // Pesquisar por método de pagamento
+        const paymentMethod = 
+          sale.paymentMethod === "cash" ? "dinheiro" :
+          sale.paymentMethod === "credit_card" ? "cartão" :
+          "pix";
+        if (paymentMethod.includes(query)) return true;
+        
+        // Pesquisar por produtos
+        const hasMatchingProduct = sale.items.some(item => 
+          item.productName.toLowerCase().includes(query)
+        );
+        if (hasMatchingProduct) return true;
+        
+        return false;
+      })
+    : [];
+
+  // Formatar data e hora
+  const formatDateTime = (dateString: string) => {
+    try {
+      return format(new Date(dateString), "dd/MM/yyyy HH:mm", { locale: ptBR });
+    } catch (error) {
+      return "Data inválida";
     }
-    
-    if (endDate) {
-      newFilters.endDate = endDate.toISOString();
+  };
+
+  // Formatar método de pagamento
+  const formatPaymentMethod = (method: string) => {
+    switch (method) {
+      case "cash":
+        return "Dinheiro";
+      case "credit_card":
+        return "Cartão";
+      case "pix":
+        return "PIX";
+      default:
+        return method;
     }
-    
-    setFilters(newFilters);
   };
-  
-  // Resetar filtros
-  const resetFilters = () => {
-    setStartDate(undefined);
-    setEndDate(undefined);
-    setFilters({});
-  };
-  
+
   // Visualizar detalhes da venda
-  const viewDetails = (sale: Sale) => {
+  const handleViewSale = (sale: Sale) => {
     setSelectedSale(sale);
-    setIsDetailsOpen(true);
+    setIsReceiptOpen(true);
+  };
+
+  // Imprimir recibo
+  const handlePrintReceipt = () => {
+    if (!selectedSale) return;
+
+    // Cria um novo elemento para impressão
+    const printWindow = window.open("", "_blank");
+
+    if (!printWindow) {
+      alert("Não foi possível abrir a janela de impressão. Verifique se os pop-ups estão permitidos.");
+      return;
+    }
+
+    // Estilos para a impressão
+    const printStyles = `
+      <style>
+        body {
+          font-family: 'Courier New', monospace;
+          padding: 10mm;
+          margin: 0;
+        }
+        .receipt {
+          width: 80mm;
+          margin: 0 auto;
+        }
+        .receipt-header {
+          text-align: center;
+          margin-bottom: 10px;
+        }
+        .receipt-header h2 {
+          font-size: 18px;
+          margin: 0;
+        }
+        .receipt-header p {
+          font-size: 12px;
+          margin: 5px 0;
+        }
+        .receipt-items {
+          border-top: 1px dashed #000;
+          border-bottom: 1px dashed #000;
+          padding: 10px 0;
+          margin: 10px 0;
+        }
+        .receipt-item {
+          display: flex;
+          justify-content: space-between;
+          font-size: 12px;
+          margin: 5px 0;
+        }
+        .receipt-total {
+          font-weight: bold;
+          font-size: 14px;
+          text-align: right;
+          margin: 10px 0;
+        }
+        .receipt-footer {
+          text-align: center;
+          font-size: 12px;
+          margin-top: 10px;
+        }
+        @media print {
+          @page {
+            size: 80mm auto;
+            margin: 0;
+          }
+        }
+      </style>
+    `;
+
+    // Prepara o HTML para impressão
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Recibo #${selectedSale.id} - Empório Ribeiro</title>
+        ${printStyles}
+      </head>
+      <body>
+        <div class="receipt">
+          <div class="receipt-header">
+            <h2>EMPÓRIO RIBEIRO</h2>
+            <p>CNPJ: 00.000.000/0001-00</p>
+            <p>Venda #${selectedSale.id}</p>
+            <p>${formatDateTime(selectedSale.createdAt)}</p>
+          </div>
+          
+          <div class="receipt-items">
+            ${selectedSale.items
+              .map(
+                (item) => `
+              <div class="receipt-item">
+                <span>${item.quantity}x ${item.productName}</span>
+                <span>${item.totalPrice.toLocaleString("pt-BR", {
+                  style: "currency",
+                  currency: "BRL",
+                })}</span>
+              </div>
+            `
+              )
+              .join("")}
+          </div>
+          
+          <div class="receipt-total">
+            <div>Total: ${selectedSale.total.toLocaleString("pt-BR", {
+              style: "currency",
+              currency: "BRL",
+            })}</div>
+            ${
+              selectedSale.paymentMethod === "cash"
+                ? `
+              <div>Valor Recebido: ${(selectedSale.cashReceived || 0).toLocaleString(
+                "pt-BR",
+                { style: "currency", currency: "BRL" }
+              )}</div>
+              <div>Troco: ${(selectedSale.change || 0).toLocaleString("pt-BR", {
+                style: "currency",
+                currency: "BRL",
+              })}</div>
+            `
+                : ""
+            }
+            <div>Forma de Pagamento: ${formatPaymentMethod(
+              selectedSale.paymentMethod
+            )}</div>
+          </div>
+          
+          <div class="receipt-footer">
+            <p>Obrigado pela preferência!</p>
+            <p>Volte sempre!</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `);
+
+    // Fecha o documento para escrita
+    printWindow.document.close();
+
+    // Espera o conteúdo carregar e então imprime
+    printWindow.onload = () => {
+      printWindow.focus();
+      printWindow.print();
+
+      // Fecha a janela após a impressão (opcional)
+      printWindow.onafterprint = () => {
+        printWindow.close();
+      };
+    };
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex items-center justify-between">
         <h1 className="heading-xl text-emporio-text">Histórico de Vendas</h1>
       </div>
 
       <Card>
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <CardHeader>
+          <CardTitle>Filtros</CardTitle>
+          <CardDescription>
+            Filtre as vendas por período ou pesquise por termos específicos
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Data Inicial</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal"
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {startDate ? (
-                      format(startDate, "dd/MM/yyyy")
-                    ) : (
-                      <span>Selecione uma data</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={startDate}
-                    onSelect={setStartDate}
-                    initialFocus
-                    locale={ptBR}
-                  />
-                </PopoverContent>
-              </Popover>
+              <div className="flex">
+                <Calendar className="h-4 w-4 mr-2 mt-3" />
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+              </div>
             </div>
-            
             <div className="space-y-2">
               <label className="text-sm font-medium">Data Final</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal"
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {endDate ? (
-                      format(endDate, "dd/MM/yyyy")
-                    ) : (
-                      <span>Selecione uma data</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={endDate}
-                    onSelect={setEndDate}
-                    initialFocus
-                    locale={ptBR}
-                    disabled={(date) => startDate ? date < startDate : false}
-                  />
-                </PopoverContent>
-              </Popover>
+              <div className="flex">
+                <Calendar className="h-4 w-4 mr-2 mt-3" />
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+              </div>
             </div>
-            
             <div className="space-y-2">
-              <label className="text-sm font-medium">Forma de Pagamento</label>
-              <Select 
-                onValueChange={(value) => 
-                  setFilters(prev => ({ ...prev, paymentMethod: value as PaymentMethod }))
-                }
-                value={filters.paymentMethod}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Todas" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
-                  <SelectItem value="cash">Dinheiro</SelectItem>
-                  <SelectItem value="credit_card">Cartão de Crédito</SelectItem>
-                  <SelectItem value="debit_card">Cartão de Débito</SelectItem>
-                  <SelectItem value="pix">PIX</SelectItem>
-                </SelectContent>
-              </Select>
+              <label className="text-sm font-medium">Pesquisar</label>
+              <div className="flex">
+                <Search className="h-4 w-4 mr-2 mt-3" />
+                <Input
+                  type="text"
+                  placeholder="Pesquisar por ID, produto, etc."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
             </div>
-          </div>
-          
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={resetFilters}>
-              Limpar Filtros
-            </Button>
-            <Button onClick={applyFilters}>
-              <Search className="h-4 w-4 mr-2" />
-              Filtrar
-            </Button>
           </div>
         </CardContent>
       </Card>
 
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Data</TableHead>
-              <TableHead>Itens</TableHead>
-              <TableHead>Pagamento</TableHead>
-              <TableHead className="text-right">Total</TableHead>
-              <TableHead className="w-[80px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {salesQuery.isLoading ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center py-10">
-                  Carregando...
-                </TableCell>
-              </TableRow>
-            ) : salesQuery.data && salesQuery.data.length > 0 ? (
-              salesQuery.data.map((sale) => (
-                <TableRow key={sale.id}>
-                  <TableCell>
-                    {format(new Date(sale.createdAt), "dd/MM/yyyy HH:mm")}
-                  </TableCell>
-                  <TableCell>
-                    {sale.items.length} {sale.items.length === 1 ? 'item' : 'itens'}
-                  </TableCell>
-                  <TableCell>
-                    <PaymentMethodBadge method={sale.paymentMethod} />
-                  </TableCell>
-                  <TableCell className="text-right font-medium">
-                    {sale.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => viewDetails(sale)}
-                    >
-                      <FileText className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center py-10">
-                  Nenhuma venda encontrada.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Vendas Realizadas</CardTitle>
+          <CardDescription>
+            {filteredSales.length} vendas encontradas
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {salesQuery.isLoading ? (
+            <div className="text-center py-8">Carregando histórico de vendas...</div>
+          ) : salesQuery.isError ? (
+            <div className="text-center py-8 text-red-500">
+              Erro ao carregar histórico de vendas. Tente novamente mais tarde.
+            </div>
+          ) : filteredSales.length === 0 ? (
+            <div className="text-center py-8">
+              <FileText className="h-12 w-12 mx-auto opacity-20 mb-2" />
+              <h3 className="text-lg font-medium">Nenhuma venda encontrada</h3>
+              <p className="text-sm text-muted-foreground">
+                Tente ajustar os filtros ou realizar novas vendas
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[80px]">ID</TableHead>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Itens</TableHead>
+                    <TableHead>Pagamento</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredSales.map((sale) => (
+                    <TableRow key={sale.id}>
+                      <TableCell className="font-medium">#{sale.id}</TableCell>
+                      <TableCell>{formatDateTime(sale.createdAt)}</TableCell>
+                      <TableCell>
+                        {sale.items.length} {sale.items.length === 1 ? "item" : "itens"}
+                      </TableCell>
+                      <TableCell>{formatPaymentMethod(sale.paymentMethod)}</TableCell>
+                      <TableCell className="text-right font-medium">
+                        {sale.total.toLocaleString("pt-BR", {
+                          style: "currency",
+                          currency: "BRL",
+                        })}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleViewSale(sale)}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-        <DialogContent className="max-w-2xl">
+      {/* Modal de visualização do recibo */}
+      <Dialog open={isReceiptOpen} onOpenChange={setIsReceiptOpen}>
+        <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle>Detalhes da Venda</DialogTitle>
+            <DialogTitle>
+              Recibo da Venda #{selectedSale?.id}
+            </DialogTitle>
           </DialogHeader>
-          <SaleDetails sale={selectedSale} />
+          <div className="max-h-[70vh] overflow-auto">
+            {selectedSale && (
+              <div className="receipt-content">
+                <div className="text-center mb-4">
+                  <h2 className="text-xl font-bold">EMPÓRIO RIBEIRO</h2>
+                  <p className="text-sm">CNPJ: 00.000.000/0001-00</p>
+                  <p className="text-sm">
+                    {formatDateTime(selectedSale.createdAt)}
+                  </p>
+                </div>
+
+                <div className="border-t border-b py-4 my-4">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Produto</TableHead>
+                        <TableHead className="text-center">Qtd</TableHead>
+                        <TableHead className="text-right">Preço</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {selectedSale.items.map((item, index) => (
+                        <TableRow key={index}>
+                          <TableCell>{item.productName}</TableCell>
+                          <TableCell className="text-center">
+                            {item.quantity}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {item.unitPrice.toLocaleString("pt-BR", {
+                              style: "currency",
+                              currency: "BRL",
+                            })}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {item.totalPrice.toLocaleString("pt-BR", {
+                              style: "currency",
+                              currency: "BRL",
+                            })}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                <div className="border-t border-b py-4 my-4">
+                  <div className="flex justify-between">
+                    <div className="font-medium">Total</div>
+                    <div className="font-medium">
+                      {selectedSale.total.toLocaleString("pt-BR", {
+                        style: "currency",
+                        currency: "BRL",
+                      })}
+                    </div>
+                  </div>
+                  <div className="flex justify-between">
+                    <div className="font-medium">Forma de Pagamento</div>
+                    <div className="font-medium">
+                      {formatPaymentMethod(selectedSale.paymentMethod)}
+                    </div>
+                  </div>
+                  {selectedSale.paymentMethod === "cash" && (
+                    <>
+                      <div className="flex justify-between">
+                        <div className="font-medium">Valor Recebido</div>
+                        <div className="font-medium">
+                          {(selectedSale.cashReceived || 0).toLocaleString("pt-BR", {
+                            style: "currency",
+                            currency: "BRL",
+                          })}
+                        </div>
+                      </div>
+                      <div className="flex justify-between">
+                        <div className="font-medium">Troco</div>
+                        <div className="font-medium">
+                          {(selectedSale.change || 0).toLocaleString("pt-BR", {
+                            style: "currency",
+                            currency: "BRL",
+                          })}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <div className="mt-4">
+                  <Button
+                    variant="outline"
+                    onClick={handlePrintReceipt}
+                  >
+                    <Printer className="h-4 w-4 mr-2" />
+                    Imprimir Recibo
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

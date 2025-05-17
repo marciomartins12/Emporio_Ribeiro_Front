@@ -208,37 +208,42 @@ const POS = () => {
       // Preparar os dados da venda
       const saleData = {
         items: cart.map(item => ({
-          productId: item.productId,
-          productName: item.productName,
+          product_id: item.productId,
+          product_name: item.productName,
           quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          totalPrice: item.totalPrice
+          unit_price: item.unitPrice,
+          total_price: item.totalPrice
         })),
         total: cartTotal,
-        paymentMethod,
-        cashReceived: parseFloat(cashReceived),
-        change
+        payment_method: paymentMethod, // Certifique-se de que este valor está correto
+        cash_received: paymentMethod === 'cash' ? parseFloat(cashReceived) : null,
+        change_amount: paymentMethod === 'cash' ? change : null
       };
 
-      // Enviar para a API
-      await salesService.createSale(saleData);
+      console.log("Enviando dados para API:", saleData);
+
+      // Registrar a venda
+      const response = await fetch('http://localhost:5000/api/sales', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(saleData),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erro ao registrar venda: ${response.statusText}`);
+      }
 
       // Exibir recibo
       setIsPaymentOpen(false);
       setIsReceiptOpen(true);
-      
-      toast({
-        title: "Venda realizada com sucesso!",
-        description: "Os dados foram salvos no sistema.",
-        duration: 3000,
-      });
     } catch (error) {
       console.error("Erro ao processar venda:", error);
       toast({
         title: "Erro ao processar venda",
-        description: "Não foi possível completar a transação. Tente novamente.",
+        description: error.message,
         variant: "destructive",
-        duration: 5000,
       });
     }
   };
@@ -738,7 +743,10 @@ const POS = () => {
           <Tabs
             defaultValue="cash"
             value={paymentMethod}
-            onValueChange={(value) => setPaymentMethod(value as PaymentMethod)}
+            onValueChange={(value) => {
+              console.log("Método de pagamento alterado para:", value);
+              setPaymentMethod(value as PaymentMethod);
+            }}
             className="w-full"
           >
             <TabsList className="grid grid-cols-3 mb-4">

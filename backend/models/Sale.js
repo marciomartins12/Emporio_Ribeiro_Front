@@ -6,6 +6,16 @@ class Sale {
       // Iniciar transação
       await db.query('START TRANSACTION');
 
+      // Garantir que o método de pagamento seja válido
+      const paymentMethod = saleData.payment_method || 'cash';
+      
+      console.log("Dados para inserção na tabela sales:", {
+        total: saleData.total,
+        paymentMethod: paymentMethod,
+        cashReceived: saleData.cash_received,
+        changeAmount: saleData.change_amount
+      });
+
       // Inserir a venda
       const [saleResult] = await db.query(
         `INSERT INTO sales 
@@ -13,9 +23,9 @@ class Sale {
         VALUES (?, ?, ?, ?, ?, ?)`,
         [
           saleData.total,
-          saleData.paymentMethod,
-          saleData.cashReceived || null,
-          saleData.change || null,
+          paymentMethod, // Usar o valor validado
+          saleData.cash_received || null,
+          saleData.change_amount || null,
           'completed',
           saleData.userId || null
         ]
@@ -31,18 +41,18 @@ class Sale {
           VALUES (?, ?, ?, ?, ?, ?)`,
           [
             saleId,
-            item.productId,
-            item.productName,
+            item.product_id,
+            item.product_name,
             item.quantity,
-            item.unitPrice,
-            item.totalPrice
+            item.unit_price,
+            item.total_price
           ]
         );
 
         // Atualizar o estoque do produto
         await db.query(
           `UPDATE products SET stock = stock - ? WHERE id = ?`,
-          [item.quantity, item.productId]
+          [item.quantity, item.product_id]
         );
       }
 
@@ -110,11 +120,15 @@ class Sale {
 
   static async getByDateRange(startDate, endDate) {
     try {
+      // Ajustar a data final para incluir todo o dia
+      const adjustedEndDate = new Date(endDate);
+      adjustedEndDate.setHours(23, 59, 59, 999);
+      
       const [sales] = await db.query(
         `SELECT * FROM sales 
          WHERE created_at BETWEEN ? AND ? 
          ORDER BY created_at DESC`,
-        [startDate, endDate]
+        [startDate, adjustedEndDate.toISOString().split('T')[0] + ' 23:59:59']
       );
 
       // Para cada venda, buscar seus itens
@@ -166,6 +180,68 @@ class Sale {
       // Rollback em caso de erro
       await db.query('ROLLBACK');
       console.error(`Erro ao cancelar venda com ID ${id}:`, error);
+      throw error;
+    }
+  }
+
+  static async getSalesByPaymentMethod(startDate, endDate) {
+    try {
+      const [results] = await db.query(
+        `SELECT payment_method, COUNT(*) as count, SUM(total) as total_amount
+         FROM sales
+         WHERE created_at BETWEEN ? AND ?
+         AND status = 'completed'
+         GROUP BY payment_method`,
+        [startDate, endDate]
+      );
+      
+      return results;
+    } catch (error) {
+      console.error('Erro ao buscar vendas por método de pagamento:', error);
+      throw error;
+    }
+  }
+
+  static async getTopSellingProducts(startDate, endDate, limit = 10) {
+    try {
+      const [results] = await db.query(
+        `SELECT si.product_id, si.product_name, 
+         SUM(si.quantity) as total_quantity,
+         SUM(si.total_price) as total_revenue
+         FROM sale_items si
+         JOIN sales s ON si.sale_id = s.id
+         WHERE s.created_at BETWEEN ? AND ?
+         AND s.status = 'completed'
+         GROUP BY si.product_id, si.product_name
+         ORDER BY total_quantity DESC
+         LIMIT ?`,
+        [startDate, endDate, limit]
+      );
+      
+      return results;
+    } catch (error) {
+      console.error('Erro ao buscar produtos mais vendidos:', error);
+      throw error;
+    }
+  }
+
+  static async getDailySales(startDate, endDate) {
+    try {
+      const [results] = await db.query(
+        `SELECT DATE(created_at) as date, 
+         COUNT(*) as sales_count,
+         SUM(total) as total_amount
+         FROM sales
+         WHERE created_at BETWEEN ? AND ?
+         AND status = 'completed'
+         GROUP BY DATE(created_at)
+         ORDER BY date`,
+        [startDate, endDate]
+      );
+      
+      return results;
+    } catch (error) {
+      console.error('Erro ao buscar vendas diárias:', error);
       throw error;
     }
   }
