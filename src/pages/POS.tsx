@@ -36,14 +36,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { 
-  ShoppingCart, 
-  Trash2, 
-  CreditCard, 
-  QrCode, 
-  DollarSign, 
-  Save, 
-  Printer, 
+import {
+  ShoppingCart,
+  Trash2,
+  CreditCard,
+  QrCode,
+  DollarSign,
+  Save,
+  Printer,
   Barcode,
   Check,
   Plus,
@@ -70,98 +70,19 @@ const POS = () => {
   const [cashReceived, setCashReceived] = useState("0");
   const [isBarcodeDialogOpen, setIsBarcodeDialogOpen] = useState(false);
 
-  // Mock de produtos (seria substituído pelos dados da API)
-  const mockProducts: Product[] = [
-    {
-      id: "1",
-      name: "Arroz Integral",
-      barcode: "7891234567890",
-      category: "Alimentos",
-      costPrice: 12.50,
-      sellingPrice: 18.90,
-      stock: 25,
-      minStock: 10,
-      createdAt: "2023-06-10T14:30:00Z",
-      updatedAt: "2023-06-10T14:30:00Z"
-    },
-    {
-      id: "2",
-      name: "Feijão Carioca",
-      barcode: "7892345678901",
-      category: "Alimentos",
-      costPrice: 8.75,
-      sellingPrice: 12.90,
-      stock: 30,
-      minStock: 15,
-      createdAt: "2023-06-11T10:15:00Z",
-      updatedAt: "2023-06-11T10:15:00Z"
-    },
-    {
-      id: "3",
-      name: "Óleo de Soja",
-      barcode: "7893456789012",
-      category: "Alimentos",
-      costPrice: 6.50,
-      sellingPrice: 9.75,
-      stock: 40,
-      minStock: 20,
-      createdAt: "2023-06-12T09:45:00Z",
-      updatedAt: "2023-06-12T09:45:00Z"
-    },
-    {
-      id: "4",
-      name: "Café Tradicional",
-      barcode: "7894567890123",
-      category: "Alimentos",
-      costPrice: 15.00,
-      sellingPrice: 22.50,
-      stock: 35,
-      minStock: 15,
-      createdAt: "2023-06-13T11:20:00Z",
-      updatedAt: "2023-06-13T11:20:00Z"
-    },
-    {
-      id: "5",
-      name: "Açúcar Refinado",
-      barcode: "7895678901234",
-      category: "Alimentos",
-      costPrice: 4.25,
-      sellingPrice: 6.90,
-      stock: 50,
-      minStock: 20,
-      createdAt: "2023-06-14T08:45:00Z",
-      updatedAt: "2023-06-14T08:45:00Z"
-    },
-  ];
-
   // Simulação de consulta de produtos
   const productsQuery = useQuery({
     queryKey: ['products', searchQuery],
     queryFn: () => {
-      return new Promise<Product[]>(resolve => {
-        setTimeout(() => {
-          const filtered = searchQuery
-            ? mockProducts.filter(p => 
-                p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                p.barcode.includes(searchQuery)
-              )
-            : mockProducts;
-          resolve(filtered);
-        }, 300);
-      });
+      if (!searchQuery) return productsService.getProducts();
+    
+      return productsService.searchProducts(searchQuery);
     }
   });
 
   const barcodeQuery = useQuery({
     queryKey: ['product', barcode],
-    queryFn: () => {
-      return new Promise<Product | null>(resolve => {
-        setTimeout(() => {
-          const product = mockProducts.find(p => p.barcode === barcode);
-          resolve(product || null);
-        }, 300);
-      });
-    },
+    queryFn: () => productsService.getProductByBarcode(barcode),
     enabled: barcode.length > 0,
   });
 
@@ -170,32 +91,61 @@ const POS = () => {
     if (barcodeQuery.data && !barcodeQuery.isLoading) {
       addToCart(barcodeQuery.data);
       setBarcode("");
+    
+      toast({
+        title: "Produto encontrado",
+        description: `${barcodeQuery.data.name} foi adicionado ao carrinho.`,
+        duration: 2000,
+      });
+    } else if (barcodeQuery.error && barcode) {
+      // Verifica se é um erro 404 (produto não encontrado)
+      const is404 = barcodeQuery.error.response?.status === 404;
+    
+      toast({
+        title: is404 ? "Produto não encontrado" : "Erro ao buscar produto",
+        description: is404 
+          ? `Não foi possível encontrar um produto com o código ${barcode}.` 
+          : "Ocorreu um erro ao buscar o produto. Tente novamente.",
+        variant: "destructive",
+        duration: 3000,
+      });
+    
+      setBarcode("");
     }
-  }, [barcodeQuery.data, barcodeQuery.isLoading]);
+  }, [barcodeQuery.data, barcodeQuery.isLoading, barcodeQuery.error, barcode]);
 
   // Cálculos do carrinho
   const cartTotal = cart.reduce((sum, item) => sum + item.totalPrice, 0);
-  const change = parseFloat(cashReceived) > cartTotal 
-    ? parseFloat(cashReceived) - cartTotal 
+  const change = parseFloat(cashReceived) > cartTotal
+    ? parseFloat(cashReceived) - cartTotal
     : 0;
 
-  // Adicionar produto ao carrinho
+  // Adicionar produto ao carrinho com verificações de segurança
   const addToCart = (product: Product) => {
+    if (!product || !product.id) {
+      toast({
+        title: "Erro ao adicionar produto",
+        description: "Dados do produto inválidos ou incompletos.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setCart(prevCart => {
       const existingItemIndex = prevCart.findIndex(item => item.productId === product.id);
-      
+
       if (existingItemIndex >= 0) {
         // Produto já está no carrinho, aumenta a quantidade
         const newCart = [...prevCart];
         const item = newCart[existingItemIndex];
         const newQuantity = item.quantity + 1;
-        
+
         newCart[existingItemIndex] = {
           ...item,
           quantity: newQuantity,
-          totalPrice: product.sellingPrice * newQuantity
+          totalPrice: (product.sellingPrice || 0) * newQuantity
         };
-        
+
         return newCart;
       } else {
         // Produto novo, adiciona ao carrinho
@@ -203,10 +153,10 @@ const POS = () => {
           ...prevCart,
           {
             productId: product.id,
-            productName: product.name,
+            productName: product.name || "Produto sem nome",
             quantity: 1,
-            unitPrice: product.sellingPrice,
-            totalPrice: product.sellingPrice,
+            unitPrice: product.sellingPrice || 0,
+            totalPrice: product.sellingPrice || 0,
             product: product
           }
         ];
@@ -232,17 +182,17 @@ const POS = () => {
       removeFromCart(index);
       return;
     }
-    
+
     setCart(prevCart => {
       const newCart = [...prevCart];
       const item = newCart[index];
-      
+
       newCart[index] = {
         ...item,
         quantity: newQuantity,
         totalPrice: item.unitPrice * newQuantity
       };
-      
+
       return newCart;
     });
   };
@@ -253,25 +203,49 @@ const POS = () => {
   };
 
   // Processar pagamento
-  const processPayment = () => {
-    console.log("Processando pagamento:", {
-      items: cart,
-      total: cartTotal,
-      paymentMethod,
-      cashReceived: parseFloat(cashReceived),
-      change
-    });
+  const processPayment = async () => {
+    try {
+      // Preparar os dados da venda
+      const saleData = {
+        items: cart.map(item => ({
+          productId: item.productId,
+          productName: item.productName,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalPrice: item.totalPrice
+        })),
+        total: cartTotal,
+        paymentMethod,
+        cashReceived: parseFloat(cashReceived),
+        change
+      };
 
-    // Aqui chamaria a API para registrar a venda
+      // Enviar para a API
+      await salesService.createSale(saleData);
 
-    // Exibir recibo
-    setIsPaymentOpen(false);
-    setIsReceiptOpen(true);
+      // Exibir recibo
+      setIsPaymentOpen(false);
+      setIsReceiptOpen(true);
+      
+      toast({
+        title: "Venda realizada com sucesso!",
+        description: "Os dados foram salvos no sistema.",
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error("Erro ao processar venda:", error);
+      toast({
+        title: "Erro ao processar venda",
+        description: "Não foi possível completar a transação. Tente novamente.",
+        variant: "destructive",
+        duration: 5000,
+      });
+    }
   };
 
   // Verificar se pode finalizar a compra
   const canFinishSale = cart.length > 0;
-  
+
   // Verificar se pode processar pagamento com base no método selecionado
   const canProcessPayment = () => {
     if (paymentMethod === 'cash') {
@@ -349,11 +323,11 @@ const POS = () => {
                     <Barcode className="h-4 w-4" />
                   </Button>
                 </div>
-                
+
                 <div className="flex gap-2">
-                  <Button 
+                  <Button
                     onClick={() => setIsSearchOpen(true)}
-                    variant="outline" 
+                    variant="outline"
                     className="w-full"
                   >
                     <Search className="h-4 w-4 mr-2" />
@@ -369,9 +343,9 @@ const POS = () => {
             <CardHeader className="pb-3">
               <div className="flex justify-between items-center">
                 <CardTitle>Carrinho de Compras</CardTitle>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={clearCart}
                   disabled={cart.length === 0}
                 >
@@ -475,7 +449,10 @@ const POS = () => {
                     {item.quantity}x {item.productName}
                   </span>
                   <span className="text-sm font-medium">
-                    {item.totalPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    {item.totalPrice !== undefined 
+                      ? item.totalPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                      : 'R$ 0,00'
+                    }
                   </span>
                 </div>
               ))}
@@ -532,17 +509,24 @@ const POS = () => {
                         Carregando...
                       </TableCell>
                     </TableRow>
+                  ) : productsQuery.error ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-red-500">
+                        Erro ao carregar produtos. Tente novamente.
+                      </TableCell>
+                    </TableRow>
                   ) : productsQuery.data && productsQuery.data.length > 0 ? (
                     productsQuery.data.map((product) => (
                       <TableRow key={product.id}>
                         <TableCell>{product.name}</TableCell>
                         <TableCell className="font-mono">{product.barcode}</TableCell>
                         <TableCell className="text-right">
-                          {product.sellingPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          {product.sellingPrice?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) ?? 'R$ 0,00'}
+
                         </TableCell>
                         <TableCell>
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             variant="ghost"
                             onClick={() => handleSearchProduct(product)}
                           >
@@ -589,8 +573,8 @@ const POS = () => {
               autoFocus
             />
             <div className="flex justify-end gap-2">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setIsBarcodeDialogOpen(false)}
               >
                 Cancelar
@@ -612,8 +596,8 @@ const POS = () => {
               Selecione a forma de pagamento
             </DialogDescription>
           </DialogHeader>
-          <Tabs 
-            defaultValue="cash" 
+          <Tabs
+            defaultValue="cash"
             value={paymentMethod}
             onValueChange={(value) => setPaymentMethod(value as PaymentMethod)}
             className="w-full"
@@ -638,10 +622,10 @@ const POS = () => {
                   <span>Total:</span>
                   <span>{cartTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                 </div>
-                
+
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Valor Recebido:</label>
-                  <Input 
+                  <Input
                     type="number"
                     value={cashReceived}
                     onChange={(e) => setCashReceived(e.target.value)}
@@ -650,7 +634,7 @@ const POS = () => {
                     className="text-right text-lg"
                   />
                 </div>
-                
+
                 <div className="flex justify-between mt-4 text-lg font-semibold">
                   <span>Troco:</span>
                   <span>{change.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
@@ -676,7 +660,7 @@ const POS = () => {
             <Button variant="outline" onClick={() => setIsPaymentOpen(false)}>
               Cancelar
             </Button>
-            <Button 
+            <Button
               disabled={!canProcessPayment()}
               onClick={processPayment}
             >
@@ -693,7 +677,7 @@ const POS = () => {
             <DialogTitle>Recibo</DialogTitle>
           </DialogHeader>
           <div className="max-h-[70vh] overflow-auto">
-            <Receipt 
+            <Receipt
               items={cart}
               total={cartTotal}
               paymentMethod={paymentMethod}
@@ -702,8 +686,8 @@ const POS = () => {
             />
           </div>
           <DialogFooter>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={handleCompleteTransaction}
               className="gap-2"
             >
