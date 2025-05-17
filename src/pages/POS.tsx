@@ -291,6 +291,145 @@ const POS = () => {
     setCashReceived("0");
   };
 
+  // Adicione esta função para lidar com a impressão
+  const handlePrintReceipt = () => {
+    // Cria um novo elemento para impressão
+    const printWindow = window.open('', '_blank');
+    
+    if (!printWindow) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível abrir a janela de impressão. Verifique se os pop-ups estão permitidos.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Prepara o conteúdo HTML para impressão
+    const receiptContent = document.querySelector('.receipt-content');
+    
+    if (!receiptContent) {
+      printWindow.close();
+      return;
+    }
+    
+    // Estilos para a impressão
+    const printStyles = `
+      <style>
+        body {
+          font-family: 'Courier New', monospace;
+          padding: 10mm;
+          margin: 0;
+        }
+        .receipt {
+          width: 80mm;
+          margin: 0 auto;
+        }
+        .receipt-header {
+          text-align: center;
+          margin-bottom: 10px;
+        }
+        .receipt-header h2 {
+          font-size: 18px;
+          margin: 0;
+        }
+        .receipt-header p {
+          font-size: 12px;
+          margin: 5px 0;
+        }
+        .receipt-items {
+          border-top: 1px dashed #000;
+          border-bottom: 1px dashed #000;
+          padding: 10px 0;
+          margin: 10px 0;
+        }
+        .receipt-item {
+          display: flex;
+          justify-content: space-between;
+          font-size: 12px;
+          margin: 5px 0;
+        }
+        .receipt-total {
+          font-weight: bold;
+          font-size: 14px;
+          text-align: right;
+          margin: 10px 0;
+        }
+        .receipt-footer {
+          text-align: center;
+          font-size: 12px;
+          margin-top: 10px;
+        }
+        @media print {
+          @page {
+            size: 80mm auto;
+            margin: 0;
+          }
+        }
+      </style>
+    `;
+    
+    // Prepara o HTML para impressão
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Recibo - Empório Ribeiro</title>
+        ${printStyles}
+      </head>
+      <body>
+        <div class="receipt">
+          <div class="receipt-header">
+            <h2>EMPÓRIO RIBEIRO</h2>
+            <p>CNPJ: 00.000.000/0001-00</p>
+            <p>${new Date().toLocaleString('pt-BR')}</p>
+          </div>
+          
+          <div class="receipt-items">
+            ${cart.map(item => `
+              <div class="receipt-item">
+                <span>${item.quantity}x ${item.productName}</span>
+                <span>${item.totalPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+              </div>
+            `).join('')}
+          </div>
+          
+          <div class="receipt-total">
+            <div>Total: ${cartTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
+            ${paymentMethod === 'cash' ? `
+              <div>Valor Recebido: ${parseFloat(cashReceived).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
+              <div>Troco: ${change.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
+            ` : ''}
+            <div>Forma de Pagamento: ${
+              paymentMethod === 'cash' ? 'Dinheiro' : 
+              paymentMethod === 'credit_card' ? 'Cartão de Crédito' : 'PIX'
+            }</div>
+          </div>
+          
+          <div class="receipt-footer">
+            <p>Obrigado pela preferência!</p>
+            <p>Volte sempre!</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `);
+    
+    // Fecha o documento para escrita
+    printWindow.document.close();
+    
+    // Espera o conteúdo carregar e então imprime
+    printWindow.onload = () => {
+      printWindow.focus();
+      printWindow.print();
+      
+      // Fecha a janela após a impressão (opcional)
+      printWindow.onafterprint = () => {
+        printWindow.close();
+      };
+    };
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -694,7 +833,7 @@ const POS = () => {
               <Check className="h-4 w-4" />
               Concluir
             </Button>
-            <Button className="gap-2">
+            <Button className="gap-2" onClick={handlePrintReceipt}>
               <Printer className="h-4 w-4" />
               Imprimir
             </Button>

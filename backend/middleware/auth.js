@@ -5,7 +5,6 @@ const authenticateToken = (req, res, next) => {
   const token = authHeader && authHeader.split(' ')[1];
   
   if (token == null) {
-    // Para algumas rotas, podemos permitir acesso sem autenticação
     req.user = null;
     return next();
   }

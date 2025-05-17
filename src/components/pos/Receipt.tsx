@@ -1,4 +1,3 @@
-
 import React from "react";
 import { PaymentMethod } from "@/types/sale";
 import { SaleItem } from "@/types/sale";
@@ -37,7 +36,7 @@ const Receipt = ({
   const currentTime = new Date().toLocaleTimeString('pt-BR');
 
   return (
-    <div className="bg-white p-8 max-w-md mx-auto border rounded-lg">
+    <div className="receipt-content">
       <div className="text-center mb-6">
         <h2 className="font-bold text-xl">Empório Ribeiro</h2>
         <p className="text-sm text-muted-foreground">CNPJ: 12.345.678/0001-90</p>
